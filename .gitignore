@@ -1,0 +1,30 @@
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# IDE
+.DS_Store
+.antigravity/
+*.swp
+
+# GCP
+gcp-key.json
+*-service-account.json
