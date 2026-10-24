@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routers import auth
+from app.routers import auth, webhook
 
 app = FastAPI(
     title="ShopThread API",
@@ -11,7 +11,6 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS - only allow our frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL],
@@ -20,8 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers
 app.include_router(auth.router)
+app.include_router(webhook.router)
 
 @app.get("/health")
 async def health_check():
