@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routers import auth, webhook, orders
+from app.routers import auth, webhook, orders, products
 
 app = FastAPI(
     title="ShopThread API",
@@ -22,6 +22,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(webhook.router)
 app.include_router(orders.router)
+app.include_router(products.router)
 
 @app.get("/health")
 async def health_check():
