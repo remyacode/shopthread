@@ -1,4 +1,5 @@
 "use client";
+
 import { useAuth } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -167,3 +168,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
