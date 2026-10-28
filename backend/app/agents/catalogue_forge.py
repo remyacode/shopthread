@@ -10,18 +10,9 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-IDENTIFY_PROMPT = """You are a jewellery expert AI. Analyze this jewellery product and return ONLY a valid JSON object:
-{
-  "jewellery_type": "earring|necklace|ring|bracelet|anklet|maangtika|other",
-  "style": "traditional|contemporary|fusion|bridal|casual",
-  "material": "gold|silver|oxidised|kundan|meenakari|pearl|stone|mixed",
-  "color": "primary color description",
-  "occasion": "daily|wedding|festival|party|office",
-  "keywords": ["keyword1", "keyword2", "keyword3"]
-}"""
-
 COPY_PROMPT = """You are a product copywriter for an Indian jewellery brand.
 
+Product name: {product_name}
 Jewellery details: {details}
 
 Generate product copy and return ONLY a valid JSON object:
@@ -40,7 +31,20 @@ Generate product copy and return ONLY a valid JSON object:
   ]
 }}"""
 
-async def identify_jewellery(image_url: str) -> dict:
+async def identify_jewellery(image_url: str, product_name: str, product_description: str) -> dict:
+    """Use Muse Wonder to identify jewellery type from image, with product name as fallback context"""
+    
+    IDENTIFY_PROMPT = f"""You are a jewellery expert AI. This is a product image of: "{product_name}".
+Analyze the jewellery and return ONLY a valid JSON object:
+{{
+  "jewellery_type": "earring|necklace|ring|bracelet|anklet|maangtika|other",
+  "style": "traditional|contemporary|fusion|bridal|casual",
+  "material": "gold|silver|oxidised|kundan|meenakari|pearl|stone|mixed",
+  "color": "primary color description",
+  "occasion": "daily|wedding|festival|party|office",
+  "keywords": ["keyword1", "keyword2", "keyword3"]
+}}"""
+
     async with httpx.AsyncClient(timeout=60) as client:
         payload = {
             "model": "muse-wonder-1.0",
@@ -52,17 +56,25 @@ async def identify_jewellery(image_url: str) -> dict:
                 ]
             }]
         }
-        response = await client.post(
-            f"{BASE_URL}/chat/completions",
-            headers=HEADERS,
-            json=payload
-        )
+        response = await client.post(f"{BASE_URL}/chat/completions", headers=HEADERS, json=payload)
 
         if response.status_code != 200:
-            print(f"Muse Wonder error: {response.status_code} - {response.text}")
+            print(f"Muse Wonder error: {response.status_code} - using product name as context")
+            # Fallback: derive from product name using Muse Spark
+            fallback_prompt = f"""You are a jewellery expert. The product is called "{product_name}". {product_description}
+            
+Return ONLY a valid JSON object:
+{{
+  "jewellery_type": "earring|necklace|ring|bracelet|anklet|maangtika|other",
+  "style": "traditional|contemporary|fusion|bridal|casual",
+  "material": "gold|silver|oxidised|kundan|meenakari|pearl|stone|mixed",
+  "color": "primary color description",
+  "occasion": "daily|wedding|festival|party|office",
+  "keywords": ["keyword1", "keyword2", "keyword3"]
+}}"""
             fallback = await chat(
                 model="muse-spark-1.3",
-                messages=[{"role": "user", "content": f"Describe a jewellery product. {IDENTIFY_PROMPT}"}],
+                messages=[{"role": "user", "content": fallback_prompt}],
                 json_mode=True
             )
             try:
@@ -74,7 +86,7 @@ async def identify_jewellery(image_url: str) -> dict:
             return {
                 "jewellery_type": "earring", "style": "traditional",
                 "material": "gold", "color": "golden",
-                "occasion": "festival", "keywords": ["jewellery", "handmade", "indian"]
+                "occasion": "festival", "keywords": [product_name.lower(), "handmade", "indian"]
             }
 
         raw = response.json()["choices"][0]["message"]["content"]
@@ -86,7 +98,7 @@ async def identify_jewellery(image_url: str) -> dict:
             return {
                 "jewellery_type": "earring", "style": "traditional",
                 "material": "gold", "color": "golden",
-                "occasion": "festival", "keywords": ["jewellery", "handmade", "indian"]
+                "occasion": "festival", "keywords": [product_name.lower(), "handmade", "indian"]
             }
 
 async def segment_image(image_url: str) -> str:
@@ -101,13 +113,12 @@ async def segment_image(image_url: str) -> str:
         print(f"SAM 3.1 error: {response.status_code} - {response.text}")
         return image_url
 
-async def generate_lifestyle_images(details: dict, vendor_id: str) -> list:
+async def generate_lifestyle_images(details: dict, vendor_id: str, product_name: str) -> list:
     prompts = [
-        f"Professional product photography of {details.get('jewellery_type', 'jewellery')}, {details.get('material', 'gold')} {details.get('color', 'golden')}, pure white background, studio lighting, high resolution",
-        f"Lifestyle photo of Indian woman wearing {details.get('jewellery_type', 'earrings')}, {details.get('style', 'traditional')} style, soft natural lighting, elegant, {details.get('occasion', 'festival')} occasion",
-        f"Aesthetic flat lay of {details.get('jewellery_type', 'jewellery')}, {details.get('material', 'gold')} finish, arranged on silk fabric, warm tones, overhead shot, Instagram worthy"
+        f"Professional product photography of {product_name}, {details.get('material', 'gold')} {details.get('color', 'golden')}, pure white background, studio lighting, high resolution",
+        f"Lifestyle photo of Indian woman wearing {product_name}, {details.get('style', 'traditional')} Indian style, soft natural lighting, elegant, {details.get('occasion', 'festival')} occasion",
+        f"Aesthetic flat lay of {product_name}, {details.get('material', 'gold')} finish, arranged on silk fabric, warm tones, overhead shot, Instagram worthy"
     ]
-
     urls = []
     for prompt in prompts:
         try:
@@ -116,10 +127,15 @@ async def generate_lifestyle_images(details: dict, vendor_id: str) -> list:
             print(f"Image generated: {url[:60]}...")
         except Exception as e:
             print(f"Image generation failed: {e}")
-
     return urls
 
-async def process_catalogue(vendor_id: str, product_id: str, image_url: str) -> dict:
+async def process_catalogue(
+    vendor_id: str,
+    product_id: str,
+    image_url: str,
+    product_name: str = "jewellery",
+    product_description: str = ""
+) -> dict:
     pack_result = supabase.table("content_packs").insert({
         "vendor_id": vendor_id,
         "product_id": product_id,
@@ -129,22 +145,24 @@ async def process_catalogue(vendor_id: str, product_id: str, image_url: str) -> 
     pack_id = pack_result.data[0]["id"]
 
     try:
-        # Step 1: Identify jewellery with Muse Wonder
-        details = await identify_jewellery(image_url)
+        # Step 1: Identify jewellery with Muse Wonder + product context
+        details = await identify_jewellery(image_url, product_name, product_description)
         print(f"Identified: {details}")
 
         # Step 2: Segment with SAM 3.1
         segmented_url = await segment_image(image_url)
-        print(f"Segmented: {segmented_url[:60]}")
 
         # Step 3: Generate lifestyle images with Muse Image
-        lifestyle_urls = await generate_lifestyle_images(details, vendor_id)
+        lifestyle_urls = await generate_lifestyle_images(details, vendor_id, product_name)
         print(f"Generated {len(lifestyle_urls)} images")
 
         # Step 4: Generate copy with Muse Spark
         copy_raw = await chat(
             model="muse-spark-1.3",
-            messages=[{"role": "user", "content": COPY_PROMPT.format(details=json.dumps(details))}],
+            messages=[{"role": "user", "content": COPY_PROMPT.format(
+                product_name=product_name,
+                details=json.dumps(details)
+            )}],
             json_mode=True
         )
         try:
@@ -153,13 +171,12 @@ async def process_catalogue(vendor_id: str, product_id: str, image_url: str) -> 
             copy = json.loads(copy_raw[start:end])
         except:
             copy = {
-                "title": f"{details.get('material', 'Gold').title()} {details.get('jewellery_type', 'Jewellery').title()}",
-                "description": "Handcrafted jewellery with exquisite detailing.",
-                "captions_en": ["Beautiful handcrafted jewellery ✨ #handmade #jewellery"],
-                "captions_hi": ["सुंदर हस्तनिर्मित आभूषण ✨ #हस्तनिर्मित"]
+                "title": product_name,
+                "description": f"Handcrafted {product_name} with exquisite detailing.",
+                "captions_en": [f"Beautiful {product_name} ✨ #handmade #jewellery"],
+                "captions_hi": [f"सुंदर {product_name} ✨ #हस्तनिर्मित"]
             }
 
-        # Step 5: Save results
         supabase.table("content_packs").update({
             "segmented_image_url": segmented_url,
             "lifestyle_urls": lifestyle_urls,
@@ -173,7 +190,7 @@ async def process_catalogue(vendor_id: str, product_id: str, image_url: str) -> 
         supabase.table("analytics_events").insert({
             "vendor_id": vendor_id,
             "event_type": "CATALOGUE_GENERATED",
-            "metadata": {"pack_id": pack_id, "jewellery_type": details.get("jewellery_type")}
+            "metadata": {"pack_id": pack_id, "jewellery_type": details.get("jewellery_type"), "product_name": product_name}
         }).execute()
 
         return {

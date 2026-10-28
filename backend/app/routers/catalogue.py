@@ -12,11 +12,23 @@ class CatalogueRequest(BaseModel):
 
 @router.post("/generate")
 async def generate_catalogue(body: CatalogueRequest, vendor: dict = Depends(get_current_vendor)):
-    """Run full CatalogueForge pipeline on an image"""
+    # Fetch product name to pass as context
+    product = supabase.table("products")\
+        .select("name, description")\
+        .eq("id", body.product_id)\
+        .eq("vendor_id", vendor["id"])\
+        .single()\
+        .execute()
+    
+    if not product.data:
+        raise HTTPException(status_code=404, detail="Product not found")
+
     result = await process_catalogue(
         vendor_id=vendor["id"],
         product_id=body.product_id,
-        image_url=body.image_url
+        image_url=body.image_url,
+        product_name=product.data["name"],
+        product_description=product.data.get("description", "")
     )
     return result
 
