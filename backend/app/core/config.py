@@ -1,7 +1,6 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
 
-# Points to the .env file in the project root
 ENV_FILE = Path(__file__).resolve().parent.parent.parent.parent / ".env"
 
 class Settings(BaseSettings):
@@ -11,6 +10,7 @@ class Settings(BaseSettings):
     META_APP_ID: str
     META_APP_SECRET: str
     META_VERIFY_TOKEN: str
+    META_API_KEY: str
     UPI_ID: str
     JWT_SECRET: str
     FRONTEND_URL: str = "http://localhost:3000"
