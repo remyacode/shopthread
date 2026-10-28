@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.routers import auth, webhook, orders, products, catalogue, upload, shipments, analytics, conversations
+from app.routers import auth, webhook, orders, products, catalogue, upload, shipments, analytics, conversations, instagram
 
 app = FastAPI(
     title="ShopThread API",
@@ -28,6 +28,7 @@ app.include_router(upload.router)
 app.include_router(shipments.router)
 app.include_router(analytics.router)
 app.include_router(conversations.router)
+app.include_router(instagram.router)
 
 @app.get("/health")
 async def health_check():

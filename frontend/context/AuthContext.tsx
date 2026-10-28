@@ -9,6 +9,7 @@ interface Vendor {
   full_name: string;
   instagram_handle: string | null;
   upi_id: string | null;
+  instagram_connected: boolean;
   created_at: string;
 }
 
@@ -64,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("shopthread_vendor", JSON.stringify(vendor));
     setToken(access_token);
     setVendor(vendor);
-    router.push("/dashboard");
+    // New vendors go to onboarding
+    router.push("/onboarding");
   };
 
   const logout = () => {
