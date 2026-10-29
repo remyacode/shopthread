@@ -91,7 +91,7 @@ export default function ShipmentsPage() {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Order</Label>
-              <Select value={createForm.order_id} onValueChange={(v) => setCreateForm({ ...createForm, order_id: v })}>
+              <Select value={createForm.order_id} onValueChange={(v) => setCreateForm({ ...createForm, order_id: v ?? "" })}>
                 <SelectTrigger><SelectValue placeholder="Select an order..." /></SelectTrigger>
                 <SelectContent>
                   {orders.map((o: any) => (
@@ -168,7 +168,7 @@ export default function ShipmentsPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Select value={s.status} onValueChange={(value) => updateShipment.mutate({ id: s.id, status: value })}>
+                    <Select value={s.status ?? ""} onValueChange={(value) => value && updateShipment.mutate({ id: s.id, status: value })}>
                       <SelectTrigger className="w-36 h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {STATUSES.map((status) => (

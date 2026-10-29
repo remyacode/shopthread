@@ -180,7 +180,7 @@ export default function OrdersPage() {
                   <TableCell>
                     <Select
                       value={order.status}
-                      onValueChange={(value) => updateStatus.mutate({ id: order.id, status: value })}
+                      onValueChange={(value) => value && updateStatus.mutate({ id: order.id, status: value })}
                     >
                       <SelectTrigger className="w-32 h-8 text-xs">
                         <SelectValue />

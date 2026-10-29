@@ -25,9 +25,12 @@ Rules:
 - quantity defaults to 1 if not mentioned
 """
 
-REPLY_PROMPT = """You are a friendly Instagram jewellery shop assistant.
+REPLY_PROMPT = """You are a friendly Instagram jewellery shop assistant for Priya Jewels.
 
-Buyer message: "{message}"
+Conversation so far:
+{history}
+
+Latest buyer message: "{message}"
 Intent detected: {intent}
 Shop UPI ID: {upi_id}
 Order ID: {order_id}
@@ -37,6 +40,8 @@ Write a warm, friendly reply in the same language as the buyer (Hindi, English, 
 If it's an ORDER with payment_readiness READY or ASKING, include the UPI payment link:
 upi://pay?pa={upi_id}&pn=ShopThread&am={amount}&cu=INR&tn=Order-{order_id}
 
+IMPORTANT: Read the full conversation above. Do not repeat questions already asked. 
+If buyer already confirmed they want to order, proceed to payment — do not ask again.
 Keep it short — max 3 sentences. Sound like a real shop owner, not a bot.
 """
 
@@ -128,6 +133,13 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
     upi_id = vendor.data.get("upi_id", "shopthread@upi")
 
     # Step 5: Generate reply using Muse Spark
+    # Build conversation history string
+    history_lines = []
+    for m in messages[:-1]:  # exclude current message
+        role = "Buyer" if m["role"] == "buyer" else "Shop"
+        history_lines.append(f"{role}: {m['content']}")
+    history = "\n".join(history_lines) if history_lines else "(this is the first message)"
+
     reply = await chat(
         model="muse-spark-1.3",
         messages=[{
@@ -137,7 +149,8 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
                 intent=json.dumps(intent),
                 upi_id=upi_id,
                 order_id=order_id or "N/A",
-                amount=amount
+                amount=amount,
+                history=history
             )
         }]
     )

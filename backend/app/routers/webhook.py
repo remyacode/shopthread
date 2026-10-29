@@ -78,3 +78,38 @@ async def receive_webhook(request: Request):
                 print(f"OrderWeave error: {e}")
 
     return {"status": "ok"}
+
+@router.post("/simulate-dm")
+async def simulate_dm(request: Request):
+    """Demo-only endpoint — simulates an incoming Instagram DM"""
+    body = await request.json()
+    sender_id = body.get("sender_id", "demo_buyer_123")
+    message_text = body.get("message")
+    ig_account_id = body.get("ig_account_id", "17841471928395278")
+
+    if not message_text:
+        raise HTTPException(status_code=400, detail="message required")
+
+    vendor_result = supabase.table("vendors")\
+        .select("id")\
+        .eq("instagram_page_id", ig_account_id)\
+        .eq("instagram_connected", True)\
+        .execute()
+
+    if not vendor_result.data:
+        raise HTTPException(status_code=404, detail="No vendor found for this Instagram account")
+
+    vendor_id = vendor_result.data[0]["id"]
+
+    result = await process_dm(
+        vendor_id=vendor_id,
+        buyer_handle=sender_id,
+        message=message_text
+    )
+
+    return {
+        "sender_id": sender_id,
+        "message": message_text,
+        "reply": result.get("reply", ""),
+        "intent": result.get("intent", {})
+    }

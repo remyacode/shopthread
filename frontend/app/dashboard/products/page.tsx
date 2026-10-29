@@ -82,7 +82,7 @@ export default function ProductsPage() {
           <p className="text-gray-500 mt-1">{products.length} products in your catalogue</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
+          <DialogTrigger>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               Add Product

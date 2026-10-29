@@ -1,0 +1,97 @@
+"use client";
+
+
+import { useState, useRef, useEffect } from "react";
+
+const BACKEND = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const IG_ACCOUNT_ID = "17841471928395278";
+
+interface Message {
+  from: "buyer" | "vendor";
+  text: string;
+  time: string;
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export default function SimulatorPage() {
+  const [messages, setMessages] = useState<Message[]>([
+    { from: "vendor", text: "Hi! Welcome to Priya Jewels. How can I help you today?", time: nowTime() }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const text = input.trim();
+    setInput("");
+    setMessages(prev => [...prev, { from: "buyer", text, time: nowTime() }]);
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND}/webhook/simulate-dm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sender_id: "demo_buyer_123", message: text, ig_account_id: IG_ACCOUNT_ID })
+      });
+      const data = await res.json();
+      setMessages(prev => [...prev, { from: "vendor", text: data.reply || "Thanks!", time: nowTime() }]);
+    } catch {
+      setMessages(prev => [...prev, { from: "vendor", text: "Sorry, something went wrong.", time: nowTime() }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+      <div style={{ width: 380, background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div style={{ borderBottom: "1px solid #efefef", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>P</div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>priyajewels_official</div>
+            <div style={{ fontSize: 12, color: "#8e8e8e" }}>Active now</div>
+          </div>
+        </div>
+        <div style={{ height: 460, overflowY: "auto", padding: "16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+          {messages.map((msg, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: msg.from === "buyer" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 8 }}>
+              {msg.from === "vendor" && (
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>P</div>
+              )}
+              <div style={{ maxWidth: "70%", background: msg.from === "buyer" ? "#3797f0" : "#efefef", color: msg.from === "buyer" ? "#fff" : "#000", padding: "8px 12px", borderRadius: msg.from === "buyer" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", fontSize: 14, lineHeight: 1.4 }}>
+                {msg.text.includes("upi://") ? (<><span>{msg.text.split("upi://")[0]}</span><a href={"upi://" + msg.text.split("upi://")[1]} style={{display:"block",marginTop:8,background:"#000",color:"#fff",padding:"8px 12px",borderRadius:8,textAlign:"center",textDecoration:"none",fontSize:13,fontWeight:600}}>💳 Pay Now</a></>) : msg.text}
+                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: "right" }}>{msg.time}</div>
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "flex-end", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>P</div>
+              <div style={{ background: "#efefef", padding: "10px 16px", borderRadius: "18px 18px 18px 4px", fontSize: 18, letterSpacing: 2 }}>···</div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+        <div style={{ borderTop: "1px solid #efefef", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && sendMessage()}
+            placeholder="Message..."
+            style={{ flex: 1, border: "1px solid #dbdbdb", borderRadius: 22, padding: "8px 16px", fontSize: 14, outline: "none" }}
+          />
+          <button onClick={sendMessage} disabled={!input.trim() || loading} style={{ background: "none", border: "none", color: "#3797f0", fontWeight: 600, fontSize: 14, cursor: "pointer", opacity: input.trim() ? 1 : 0.4 }}>
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

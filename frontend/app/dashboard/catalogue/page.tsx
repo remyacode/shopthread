@@ -95,8 +95,7 @@ export default function CataloguePage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Select Product</label>
-                <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                  <SelectTrigger><SelectValue placeholder="Choose a product..." /></SelectTrigger>
+                <Select value={selectedProduct ?? ""} onValueChange={(v) => setSelectedProduct(v ?? "")}>                  <SelectTrigger><SelectValue placeholder="Choose a product..." /></SelectTrigger>
                   <SelectContent>
                     {products.map((p) => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
                   </SelectContent>
