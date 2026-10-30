@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +24,6 @@ export default function OnboardingPage() {
   const [productForm, setProductForm] = useState({ name: "", price: "", inventory_count: "", variants: "" });
   const [productAdded, setProductAdded] = useState(false);
 
-  const { data: igStatus } = useQuery({
-    queryKey: ["ig-status"],
-    queryFn: async () => { const res = await api.get("/instagram/status"); return res.data; },
-    refetchInterval: 3000,
-  });
-
   const addProduct = useMutation({
     mutationFn: async () => {
       const res = await api.post("/products/", {
@@ -46,14 +40,8 @@ export default function OnboardingPage() {
     },
   });
 
-  const connectInstagram = async () => {
-    const res = await api.get("/instagram/connect");
-    window.location.href = res.data.oauth_url;
-  };
-
   const isStepDone = (stepId: string) => {
     if (stepId === "product") return productAdded;
-    if (stepId === "instagram") return igStatus?.connected;
     return false;
   };
 
@@ -122,12 +110,14 @@ export default function OnboardingPage() {
 
                     {step.id === "instagram" && (
                       <div className="mt-2 space-y-4">
-                        <div className="p-4 bg-blue-50 rounded-lg">
-                          <p className="text-sm text-blue-700">You need a <strong>Facebook Page</strong> linked to an <strong>Instagram Business account</strong>. Convert your Instagram to a Business account in the Instagram app settings first if needed.</p>
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                          <p className="text-sm text-blue-800">
+                            <strong>Note for judges:</strong> This is a demo build. Instagram Business account connection will be available after Meta app review is approved for production. To test the full DM-to-order flow, use the{" "}
+                            <a href="/simulator" className="underline font-semibold">DM Simulator →</a>
+                          </p>
                         </div>
-                        <Button className="w-full" onClick={connectInstagram}>
-                          <Link2 className="h-4 w-4 mr-2" />
-                          Connect Instagram Business Account
+                        <Button className="w-full" variant="outline" onClick={() => router.push("/dashboard")}>
+                          Continue to Dashboard →
                         </Button>
                       </div>
                     )}
