@@ -129,7 +129,12 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
     # Step 5: Create/update order only if buyer has confirmed (payment_readiness READY)
     order_id = None
     amount = 0
-    if intent["message_type"] == "ORDER" and intent.get("payment_readiness") == "READY":
+    # Create order when buyer confirmed (payment_readiness READY, or said yes/confirmed in context)
+    should_create_order = (
+        intent.get("payment_readiness") == "READY" or
+        (collected_address and collected_variant and intent["message_type"] in ("ORDER", "OTHER"))
+    )
+    if should_create_order:
         product_name = intent.get("product_name")
         product_id = None
         if product_name and all_products.data:
