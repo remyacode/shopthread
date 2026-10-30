@@ -22,6 +22,19 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function getSenderId(): string {
+  try {
+    let id = sessionStorage.getItem("simulator_sender_id");
+    if (!id) {
+      id = "demo_" + Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem("simulator_sender_id", id);
+    }
+    return id;
+  } catch {
+    return "demo_buyer_" + Math.random().toString(36).slice(2, 8);
+  }
+}
+
 function MessageBubble({ msg, initial }: { msg: Message; initial: string }) {
   const hasUpi = msg.text.includes("upi://");
   const upiMatch = hasUpi ? msg.text.match(/(upi:\/\/[^\s]+)/) : null;
@@ -62,6 +75,9 @@ export default function SimulatorPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [senderId] = useState(getSenderId);
+  const messageIndexRef = useRef(0);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,7 +94,30 @@ export default function SimulatorPage() {
     setSelectedVendor(v);
     setMessages([{ from: "vendor", text: `Hi! Welcome to ${v.name}. How can I help you today?`, time: nowTime() }]);
     setInput("");
+    messageIndexRef.current = 0;
+    if (pollingRef.current) clearInterval(pollingRef.current);
   }
+
+  // Poll for new shop messages (order status updates etc.)
+  useEffect(() => {
+    if (!selectedVendor) return;
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${BACKEND}/webhook/conversation/latest?vendor_id=${selectedVendor.id}&sender_id=${senderId}&after_index=${messageIndexRef.current}`
+        );
+        const data = await res.json();
+        if (data.messages?.length > 0) {
+          setMessages(prev => [
+            ...prev,
+            ...data.messages.map((m: any) => ({ from: "vendor" as const, text: m.content, time: nowTime() }))
+          ]);
+          messageIndexRef.current = data.total;
+        }
+      } catch {}
+    }, 3000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [selectedVendor, senderId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -94,10 +133,13 @@ export default function SimulatorPage() {
       const res = await fetch(`${BACKEND}/webhook/simulate-dm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender_id: "demo_buyer_123", message: text, vendor_id: selectedVendor.id })
+        body: JSON.stringify({ sender_id: senderId, message: text, vendor_id: selectedVendor.id })
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { from: "vendor", text: data.reply || "Thanks!", time: nowTime() }]);
+      if (data.reply) {
+        setMessages(prev => [...prev, { from: "vendor", text: data.reply, time: nowTime() }]);
+        messageIndexRef.current += 2; // buyer + shop message
+      }
     } catch {
       setMessages(prev => [...prev, { from: "vendor", text: "Sorry, something went wrong.", time: nowTime() }]);
     } finally {
@@ -109,26 +151,19 @@ export default function SimulatorPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
-      {/* Vendor picker */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ color: "#888", fontSize: 13 }}>Chatting with:</span>
         <select
           value={selectedVendor?.id || ""}
-          onChange={e => {
-            const v = vendors.find(x => x.id === e.target.value);
-            if (v) selectVendor(v);
-          }}
+          onChange={e => { const v = vendors.find(x => x.id === e.target.value); if (v) selectVendor(v); }}
           style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #333", borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer", outline: "none" }}
         >
           {vendors.map(v => (
-            <option key={v.id} value={v.id}>
-              {v.name} {v.handle ? `(@${v.handle})` : ""}
-            </option>
+            <option key={v.id} value={v.id}>{v.name} {v.handle ? `(@${v.handle})` : ""}</option>
           ))}
         </select>
       </div>
 
-      {/* Chat window */}
       <div style={{ width: 380, background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
         <div style={{ borderBottom: "1px solid #efefef", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>{initial}</div>
