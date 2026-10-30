@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from "react";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const IG_ACCOUNT_ID = "17841471928395278";
 
 interface Message {
   from: "buyer" | "vendor";
@@ -11,11 +10,19 @@ interface Message {
   time: string;
 }
 
+interface Vendor {
+  id: string;
+  name: string;
+  handle: string;
+  instagram_page_id: string;
+  connected: boolean;
+}
+
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function MessageBubble({ msg }: { msg: Message }) {
+function MessageBubble({ msg, initial }: { msg: Message; initial: string }) {
   const hasUpi = msg.text.includes("upi://");
   const upiMatch = hasUpi ? msg.text.match(/(upi:\/\/[^\s]+)/) : null;
   const upiUrl = upiMatch ? upiMatch[1] : null;
@@ -38,46 +45,47 @@ function MessageBubble({ msg }: { msg: Message }) {
       {hasUpi && upiUrl ? (
         <>
           {beforeUpi && <span style={{ display: "block", marginBottom: 6 }}>{beforeUpi.trim()}</span>}
-          <a
-            href={upiUrl}
-            style={{
-              display: "block",
-              background: "#1a1a1a",
-              color: "#fff",
-              padding: "10px 14px",
-              borderRadius: 10,
-              textAlign: "center" as const,
-              textDecoration: "none",
-              fontSize: 13,
-              fontWeight: 600
-            }}
-          >
+          <a href={upiUrl} style={{ display: "block", background: "#1a1a1a", color: "#fff", padding: "10px 14px", borderRadius: 10, textAlign: "center" as const, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
             💳 Pay {amount ? `₹${amount}` : ""} Now
           </a>
           {afterUpi && <span style={{ display: "block", marginTop: 6 }}>{afterUpi.trim()}</span>}
         </>
-      ) : (
-        msg.text
-      )}
+      ) : msg.text}
       <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: "right" as const }}>{msg.time}</div>
     </div>
   );
 }
 
 export default function SimulatorPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    { from: "vendor", text: "Hi! Welcome to Priya Jewels. How can I help you today?", time: nowTime() }
-  ]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch(`${BACKEND}/webhook/vendors/list`)
+      .then(r => r.json())
+      .then((data: Vendor[]) => {
+        setVendors(data);
+        if (data.length > 0) selectVendor(data[0]);
+      })
+      .catch(() => {});
+  }, []);
+
+  function selectVendor(v: Vendor) {
+    setSelectedVendor(v);
+    setMessages([{ from: "vendor", text: `Hi! Welcome to ${v.name}. How can I help you today?`, time: nowTime() }]);
+    setInput("");
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   async function sendMessage() {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || !selectedVendor) return;
     const text = input.trim();
     setInput("");
     setMessages(prev => [...prev, { from: "buyer", text, time: nowTime() }]);
@@ -86,7 +94,7 @@ export default function SimulatorPage() {
       const res = await fetch(`${BACKEND}/webhook/simulate-dm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender_id: "demo_buyer_123", message: text, ig_account_id: IG_ACCOUNT_ID })
+        body: JSON.stringify({ sender_id: "demo_buyer_123", message: text, vendor_id: selectedVendor.id })
       });
       const data = await res.json();
       setMessages(prev => [...prev, { from: "vendor", text: data.reply || "Thanks!", time: nowTime() }]);
@@ -97,13 +105,35 @@ export default function SimulatorPage() {
     }
   }
 
+  const initial = selectedVendor ? selectedVendor.name.charAt(0).toUpperCase() : "S";
+
   return (
-    <div style={{ minHeight: "100vh", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif" }}>
+      {/* Vendor picker */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ color: "#888", fontSize: 13 }}>Chatting with:</span>
+        <select
+          value={selectedVendor?.id || ""}
+          onChange={e => {
+            const v = vendors.find(x => x.id === e.target.value);
+            if (v) selectVendor(v);
+          }}
+          style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #333", borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer", outline: "none" }}
+        >
+          {vendors.map(v => (
+            <option key={v.id} value={v.id}>
+              {v.name} {v.handle ? `(@${v.handle})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Chat window */}
       <div style={{ width: 380, background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
         <div style={{ borderBottom: "1px solid #efefef", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>P</div>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 16 }}>{initial}</div>
           <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>priyajewels_official</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedVendor?.handle ? `@${selectedVendor.handle}` : selectedVendor?.name || "Shop"}</div>
             <div style={{ fontSize: 12, color: "#8e8e8e" }}>Active now</div>
           </div>
         </div>
@@ -111,14 +141,14 @@ export default function SimulatorPage() {
           {messages.map((msg, i) => (
             <div key={i} style={{ display: "flex", justifyContent: msg.from === "buyer" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 8 }}>
               {msg.from === "vendor" && (
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>P</div>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>{initial}</div>
               )}
-              <MessageBubble msg={msg} />
+              <MessageBubble msg={msg} initial={initial} />
             </div>
           ))}
           {loading && (
             <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "flex-end", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>P</div>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>{initial}</div>
               <div style={{ background: "#efefef", padding: "10px 16px", borderRadius: "18px 18px 18px 4px", fontSize: 18, letterSpacing: 2 }}>···</div>
             </div>
           )}
