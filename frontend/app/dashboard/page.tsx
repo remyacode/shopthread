@@ -38,6 +38,14 @@ export default function DashboardPage() {
 
   return (
     <div className="p-8">
+      {/* Demo mode banner */}
+      <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded mr-3">Demo Mode</span>
+          <span className="text-sm text-amber-800">Instagram connection requires Meta app review. Test the full DM-to-order flow using the simulator.</span>
+        </div>
+        <a href="/simulator" target="_blank" rel="noopener noreferrer" className="ml-4 flex-shrink-0 text-sm font-semibold text-amber-900 underline">Open Simulator →</a>
+      </div>
       <div className="mb-8">
         <h2 className="text-2xl font-semibold text-gray-900">
           {getGreeting()}, {vendor?.full_name.split(" ")[0]}
