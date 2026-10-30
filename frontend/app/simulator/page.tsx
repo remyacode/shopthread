@@ -1,6 +1,5 @@
 "use client";
 
-
 import { useState, useRef, useEffect } from "react";
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -14,6 +13,55 @@ interface Message {
 
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
+  const hasUpi = msg.text.includes("upi://");
+  const upiMatch = hasUpi ? msg.text.match(/(upi:\/\/[^\s]+)/) : null;
+  const upiUrl = upiMatch ? upiMatch[1] : null;
+  const amountMatch = upiUrl ? upiUrl.match(/am=([^&]+)/) : null;
+  const amount = amountMatch ? amountMatch[1] : "";
+  const beforeUpi = upiUrl ? msg.text.split(upiUrl)[0] : msg.text;
+  const afterUpi = upiUrl ? msg.text.split(upiUrl)[1] : "";
+
+  return (
+    <div style={{
+      maxWidth: "70%",
+      background: msg.from === "buyer" ? "#3797f0" : "#efefef",
+      color: msg.from === "buyer" ? "#fff" : "#000",
+      padding: "8px 12px",
+      borderRadius: msg.from === "buyer" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+      fontSize: 14,
+      lineHeight: 1.5,
+      wordBreak: "break-word" as const
+    }}>
+      {hasUpi && upiUrl ? (
+        <>
+          {beforeUpi && <span style={{ display: "block", marginBottom: 6 }}>{beforeUpi.trim()}</span>}
+          <a
+            href={upiUrl}
+            style={{
+              display: "block",
+              background: "#1a1a1a",
+              color: "#fff",
+              padding: "10px 14px",
+              borderRadius: 10,
+              textAlign: "center" as const,
+              textDecoration: "none",
+              fontSize: 13,
+              fontWeight: 600
+            }}
+          >
+            💳 Pay {amount ? `₹${amount}` : ""} Now
+          </a>
+          {afterUpi && <span style={{ display: "block", marginTop: 6 }}>{afterUpi.trim()}</span>}
+        </>
+      ) : (
+        msg.text
+      )}
+      <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: "right" as const }}>{msg.time}</div>
+    </div>
+  );
 }
 
 export default function SimulatorPage() {
@@ -65,10 +113,7 @@ export default function SimulatorPage() {
               {msg.from === "vendor" && (
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#bc1888)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>P</div>
               )}
-              <div style={{ maxWidth: "70%", background: msg.from === "buyer" ? "#3797f0" : "#efefef", color: msg.from === "buyer" ? "#fff" : "#000", padding: "8px 12px", borderRadius: msg.from === "buyer" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", fontSize: 14, lineHeight: 1.4 }}>
-                {msg.text.includes("upi://") ? (<><span>{msg.text.split("upi://")[0]}</span><a href={"upi://" + msg.text.split("upi://")[1]} style={{display:"block",marginTop:8,background:"#000",color:"#fff",padding:"8px 12px",borderRadius:8,textAlign:"center",textDecoration:"none",fontSize:13,fontWeight:600}}>💳 Pay Now</a></>) : msg.text}
-                <div style={{ fontSize: 10, opacity: 0.6, marginTop: 4, textAlign: "right" }}>{msg.time}</div>
-              </div>
+              <MessageBubble msg={msg} />
             </div>
           ))}
           {loading && (
