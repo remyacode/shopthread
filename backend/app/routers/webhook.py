@@ -37,10 +37,8 @@ async def receive_webhook(request: Request):
     print(f"Webhook received: {json.dumps(payload, indent=2)}")
 
     for entry in payload.get("entry", []):
-        # Instagram Business Account ID that received the DM
         ig_account_id = str(entry.get("id", ""))
 
-        # Find vendor by Instagram Page ID
         vendor_result = supabase.table("vendors")\
             .select("id, instagram_page_id, instagram_connected")\
             .eq("instagram_page_id", ig_account_id)\
@@ -53,7 +51,6 @@ async def receive_webhook(request: Request):
 
         vendor_id = vendor_result.data[0]["id"]
 
-        # Process each DM
         for messaging in entry.get("messaging", []):
             sender_id = messaging.get("sender", {}).get("id")
             message_text = messaging.get("message", {}).get("text")
@@ -61,7 +58,6 @@ async def receive_webhook(request: Request):
             if not sender_id or not message_text:
                 continue
 
-            # Skip messages from the vendor themselves
             if sender_id == ig_account_id:
                 continue
 
@@ -79,30 +75,55 @@ async def receive_webhook(request: Request):
 
     return {"status": "ok"}
 
+@router.get("/vendors/list")
+async def list_vendors():
+    """Return all vendors for the simulator dropdown."""
+    result = supabase.table("vendors")\
+        .select("id, full_name, instagram_handle, instagram_page_id, instagram_connected")\
+        .execute()
+    return [
+        {
+            "id": r["id"],
+            "name": r["full_name"],
+            "handle": r.get("instagram_handle") or "",
+            "instagram_page_id": r.get("instagram_page_id") or "",
+            "connected": r.get("instagram_connected") or False
+        }
+        for r in (result.data or [])
+    ]
+
 @router.post("/simulate-dm")
 async def simulate_dm(request: Request):
-    """Demo-only endpoint — simulates an incoming Instagram DM"""
+    """Demo-only endpoint — simulates an incoming Instagram DM."""
     body = await request.json()
     sender_id = body.get("sender_id", "demo_buyer_123")
     message_text = body.get("message")
-    ig_account_id = body.get("ig_account_id", "17841471928395278")
+    ig_account_id = body.get("ig_account_id", "")
+    vendor_id = body.get("vendor_id", "")
 
     if not message_text:
         raise HTTPException(status_code=400, detail="message required")
 
-    vendor_result = supabase.table("vendors")\
-        .select("id")\
-        .eq("instagram_page_id", ig_account_id)\
-        .eq("instagram_connected", True)\
-        .execute()
-
-    if not vendor_result.data:
-        raise HTTPException(status_code=404, detail="No vendor found for this Instagram account")
-
-    vendor_id = vendor_result.data[0]["id"]
+    # Look up vendor by vendor_id first, then ig_account_id
+    vendor = None
+    if vendor_id:
+        r = supabase.table("vendors").select("id").eq("id", vendor_id).execute()
+        if r.data:
+            vendor = r.data[0]
+    if not vendor and ig_account_id:
+        r = supabase.table("vendors").select("id").eq("instagram_page_id", ig_account_id).execute()
+        if r.data:
+            vendor = r.data[0]
+    # Fallback to default demo vendor
+    if not vendor:
+        r = supabase.table("vendors").select("id").eq("instagram_page_id", "17841471928395278").execute()
+        if r.data:
+            vendor = r.data[0]
+    if not vendor:
+        raise HTTPException(status_code=404, detail="No vendor found")
 
     result = await process_dm(
-        vendor_id=vendor_id,
+        vendor_id=vendor["id"],
         buyer_handle=sender_id,
         message=message_text
     )
