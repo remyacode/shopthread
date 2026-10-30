@@ -113,7 +113,7 @@ export default function OnboardingPage() {
                         <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                           <p className="text-sm text-blue-800">
                             <strong>Note for judges:</strong> This is a demo build. Instagram Business account connection will be available after Meta app review is approved for production. To test the full DM-to-order flow, use the{" "}
-                            <a href="/simulator" className="underline font-semibold">DM Simulator →</a>
+                            <a href="/simulator" target="_blank" rel="noopener noreferrer" className="underline font-semibold">DM Simulator →</a>
                           </p>
                         </div>
                         <Button className="w-full" variant="outline" onClick={() => router.push("/dashboard")}>
