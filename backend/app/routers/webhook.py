@@ -134,3 +134,22 @@ async def simulate_dm(request: Request):
         "reply": result.get("reply", ""),
         "intent": result.get("intent", {})
     }
+
+@router.get("/conversation/latest")
+async def get_latest_messages(vendor_id: str, sender_id: str, after_index: int = 0):
+    """Poll for new shop messages in a conversation — used by simulator."""
+    result = supabase.table("conversations")\
+        .select("messages")\
+        .eq("vendor_id", vendor_id)\
+        .eq("buyer_ig_handle", sender_id)\
+        .execute()
+    if not result.data:
+        return {"messages": []}
+    messages = result.data[0]["messages"] or []
+    # Return only shop messages after the given index
+    new_messages = [
+        {"role": m["role"], "content": m["content"], "index": i}
+        for i, m in enumerate(messages)
+        if i >= after_index and m["role"] == "shop"
+    ]
+    return {"messages": new_messages, "total": len(messages)}
