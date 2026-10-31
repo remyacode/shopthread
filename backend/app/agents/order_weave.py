@@ -23,6 +23,7 @@ Rules:
 - If buyer says want, chahiye, book, order, le lena -> message_type is ORDER
 - If buyer says paid, sent, bhej diya -> message_type is PAYMENT
 - If buyer says return, wapas, refund -> message_type is RETURN
+- If buyer says yes, ok, confirm, haan, theek hai -> payment_readiness is READY
 - quantity defaults to 1 if not mentioned
 """
 
@@ -117,32 +118,37 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
     ]
     products_str = "\n".join(products_list) if products_list else "No products listed yet."
 
-    # Step 4: Extract collected info from conversation history
+    # Step 4: Extract collected info from full conversation history
     collected_variant = None
     collected_address = None
+    collected_product_name = None
     for m in messages:
         if m.get("intent", {}).get("variant"):
             collected_variant = m["intent"]["variant"]
         if m.get("intent", {}).get("address"):
             collected_address = m["intent"]["address"]
+        if m.get("intent", {}).get("product_name"):
+            collected_product_name = m["intent"]["product_name"]
 
-    # Step 5: Create/update order only if buyer has confirmed (payment_readiness READY)
-    order_id = None
+    # Step 5: Resolve product + amount from history
+    product_name = collected_product_name or intent.get("product_name")
     amount = 0
-    # Create order when buyer confirmed (payment_readiness READY, or said yes/confirmed in context)
+    product_id = None
+    if product_name and all_products.data:
+        for p in all_products.data:
+            if product_name.lower() in p["name"].lower() or p["name"].lower() in product_name.lower():
+                amount = float(p["price"])
+                product_id = p["id"]
+                break
+
+    # Step 6: Create order when buyer confirms AND we have variant + address + product
+    order_id = None
     should_create_order = (
-        intent.get("payment_readiness") == "READY" or
-        (collected_address and collected_variant and intent["message_type"] in ("ORDER", "OTHER"))
+        intent.get("payment_readiness") == "READY" and
+        collected_address and
+        product_id
     )
     if should_create_order:
-        product_name = intent.get("product_name")
-        product_id = None
-        if product_name and all_products.data:
-            for p in all_products.data:
-                if product_name.lower() in p["name"].lower():
-                    amount = float(p["price"])
-                    product_id = p["id"]
-                    break
         order_result = supabase.table("orders").insert({
             "vendor_id": vendor_id,
             "product_id": product_id,
@@ -155,14 +161,14 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
         }).execute()
         order_id = order_result.data[0]["id"][:8].upper()
 
-    # Step 6: Build history string
+    # Step 7: Build history string
     history_lines = []
     for m in messages[:-1]:
         role = "Buyer" if m["role"] == "buyer" else "Shop"
         history_lines.append(f"{role}: {m['content']}")
     history = "\n".join(history_lines) if history_lines else "(this is the first message)"
 
-    # Step 7: Generate reply
+    # Step 8: Generate reply
     reply = await chat(
         model="muse-spark-1.3",
         messages=[{
@@ -182,14 +188,14 @@ async def process_dm(vendor_id: str, buyer_handle: str, message: str) -> dict:
         }]
     )
 
-    # Step 8: Save shop reply to conversation
+    # Step 9: Save shop reply to conversation
     messages.append({"role": "shop", "content": reply})
     supabase.table("conversations")\
         .update({"messages": messages, "last_message_at": "now()"})\
         .eq("id", conv_id)\
         .execute()
 
-    # Step 9: Log analytics
+    # Step 10: Log analytics
     supabase.table("analytics_events").insert({
         "vendor_id": vendor_id,
         "event_type": "DM_PROCESSED",
