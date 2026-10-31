@@ -22,17 +22,8 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function getSenderId(): string {
-  try {
-    let id = sessionStorage.getItem("simulator_sender_id");
-    if (!id) {
-      id = "demo_" + Math.random().toString(36).slice(2, 10);
-      sessionStorage.setItem("simulator_sender_id", id);
-    }
-    return id;
-  } catch {
-    return "demo_buyer_" + Math.random().toString(36).slice(2, 8);
-  }
+function newSenderId(): string {
+  return "demo_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now();
 }
 
 function MessageBubble({ msg, initial }: { msg: Message; initial: string }) {
@@ -75,7 +66,7 @@ export default function SimulatorPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [senderId] = useState(getSenderId);
+  const senderIdRef = useRef<string>(newSenderId());
   const messageIndexRef = useRef(0);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -94,17 +85,26 @@ export default function SimulatorPage() {
     setSelectedVendor(v);
     setMessages([{ from: "vendor", text: `Hi! Welcome to ${v.name}. How can I help you today?`, time: nowTime() }]);
     setInput("");
+    senderIdRef.current = newSenderId();
     messageIndexRef.current = 0;
     if (pollingRef.current) clearInterval(pollingRef.current);
   }
 
-  // Poll for new shop messages (order status updates etc.)
+  function clearChat() {
+    if (!selectedVendor) return;
+    senderIdRef.current = newSenderId();
+    messageIndexRef.current = 0;
+    setMessages([{ from: "vendor", text: `Hi! Welcome to ${selectedVendor.name}. How can I help you today?`, time: nowTime() }]);
+    setInput("");
+    if (pollingRef.current) clearInterval(pollingRef.current);
+  }
+
   useEffect(() => {
     if (!selectedVendor) return;
     pollingRef.current = setInterval(async () => {
       try {
         const res = await fetch(
-          `${BACKEND}/webhook/conversation/latest?vendor_id=${selectedVendor.id}&sender_id=${senderId}&after_index=${messageIndexRef.current}`
+          `${BACKEND}/webhook/conversation/latest?vendor_id=${selectedVendor.id}&sender_id=${senderIdRef.current}&after_index=${messageIndexRef.current}`
         );
         const data = await res.json();
         if (data.messages?.length > 0) {
@@ -117,7 +117,7 @@ export default function SimulatorPage() {
       } catch {}
     }, 3000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [selectedVendor, senderId]);
+  }, [selectedVendor]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -133,12 +133,12 @@ export default function SimulatorPage() {
       const res = await fetch(`${BACKEND}/webhook/simulate-dm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender_id: senderId, message: text, vendor_id: selectedVendor.id })
+        body: JSON.stringify({ sender_id: senderIdRef.current, message: text, vendor_id: selectedVendor.id })
       });
       const data = await res.json();
       if (data.reply) {
         setMessages(prev => [...prev, { from: "vendor", text: data.reply, time: nowTime() }]);
-        messageIndexRef.current += 2; // buyer + shop message
+        messageIndexRef.current += 2;
       }
     } catch {
       setMessages(prev => [...prev, { from: "vendor", text: "Sorry, something went wrong.", time: nowTime() }]);
@@ -162,6 +162,12 @@ export default function SimulatorPage() {
             <option key={v.id} value={v.id}>{v.name} {v.handle ? `(@${v.handle})` : ""}</option>
           ))}
         </select>
+        <button
+          onClick={clearChat}
+          style={{ background: "#1a1a1a", color: "#888", border: "1px solid #333", borderRadius: 8, padding: "6px 12px", fontSize: 13, cursor: "pointer" }}
+        >
+          New Chat
+        </button>
       </div>
 
       <div style={{ width: 380, background: "#fff", borderRadius: 16, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
